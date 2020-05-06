@@ -1,12 +1,11 @@
-import { hideDiv, showDiv, DeviceInfo, isMobile, showHTML } from './utils.mjs'
+import { hideDiv, showDiv, DeviceInfo, isMobile, showHTML } from './utils/utils.mjs'
 import Ragdoll from './games/ragdoll.mjs';
 import RagdollControls from './games/ragdoll-controls.mjs';
 import { constants } from '../shared/constants.mjs';
 
 const playButton = document.getElementById('play-button');
 const socket = io();
-const debug = true;
-let players = {};
+const debug = false;
 let game = null;
 
 function initMobile() {
@@ -28,11 +27,17 @@ function initMobile() {
         if (!game) {
             let setupDiv = document.getElementById('container');
             setupDiv.remove();
-            if (gameType === "ragdoll") game = new RagdollControls();
+            if (gameType === "ragdoll") game = new RagdollControls(socket);
             game.setup();
             run();
         };
     });
+
+    socket.on('state', function (state) {
+        if(debug) console.log("Mobile State: ", state);
+        if(game) game.update(state)
+    });
+
 
     showHTML();
 }
@@ -43,13 +48,13 @@ function initGame() {
 
     // Add new user to players variable
     socket.on('new player', function (player) {
-        players[player.id] = player;
-        if (debug) console.log("New Player: ", players[player.id]);
+        if (game) game.addPlayer(player);
+        if (debug) console.log("New Player: ", game.players[player.id]);
     });
 
     // Remove user from players variable
     socket.on('remove player', function (player) {
-        delete players[player.id];
+        if (game) game.removePlayer(player.id);
     });
 
     // If a game isn't running, set it up
@@ -57,14 +62,23 @@ function initGame() {
         if (!game) {
             let container = document.getElementById('container');
             container.remove();
-            if (gameType === "ragdoll") game = new Ragdoll();
+            if (gameType === "ragdoll") game = new Ragdoll(socket);
             game.setup();
             run();
         };
     });
 
-    socket.on('clickRequest', function(data){
-        game.processClickRequest(data.player, data.coords)
+    socket.on('click request', function (data) {
+        game.processClickRequest(data.player, data.coords);
+    });
+
+    socket.on('player ready', function (id) {
+        game.players[id].ready = true;
+    })
+
+    socket.on('state', function (state) {
+        if(debug) console.log("Game State: ", state);
+        if(game) game.update(state)
     });
 
     showHTML();
@@ -80,6 +94,6 @@ if (isMobile()) {
 
 const run = () => {
     requestAnimationFrame(run);
-    if(game) game.play(socket);
+    if (game) game.play(socket);
 }
 
