@@ -55,7 +55,7 @@ export default class DecisionMaker {
     }
     runTest() {
         let decisions = new DecisionData("test", false);
-        decisions.loadTest();
+        while (!decisions.loadTest());
         this.decisions["test"] = { decision: decisions };
         this.decisions["test2"] = { decision: decisions };
         this.writeToFile("./data/test.json");

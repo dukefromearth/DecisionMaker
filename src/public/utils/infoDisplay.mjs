@@ -4,6 +4,7 @@ export default class InfoDisplay {
         this.div = null;
     }
     update(info) {
+        if(!this.div) return;
         console.log(info);
         this.div.innerHTML = ""; 
         for(let i in info){

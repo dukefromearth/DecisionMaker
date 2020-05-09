@@ -58,12 +58,13 @@ function initGame() {
     });
 
     // If a game isn't running, set it up
-    socket.on('setup game', function (gameType) {
+    socket.on('setup game', function (gameType, data) {
         if (!game) {
             let container = document.getElementById('container');
             container.remove();
-            if (gameType === "ragdoll") game = new Ragdoll(socket);
+            if (gameType === "ragdoll") game = new Ragdoll(socket, data);
             game.setup();
+            socket.emit('setup game', game.map)
             run();
         };
     });
@@ -80,6 +81,10 @@ function initGame() {
         if(debug) console.log("Game State: ", state);
         if(game) game.update(state)
     });
+
+    socket.on('new player position', function(player){
+        game.newPlayerPosition(player);
+    })
 
     showHTML();
 }

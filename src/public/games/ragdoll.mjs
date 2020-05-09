@@ -3,7 +3,7 @@ import { OrbitControls } from "../threejs/OrbitControls.js";
 
 
 let Ammo = new AmmoLib();
-let debug = true;
+let debug = false;
 let mouseCoords = new THREE.Vector2();
 let clickRequest = false;
 let deviceInfo = DeviceInfo();
@@ -16,7 +16,10 @@ let loaderHelper = new LoaderHelper('src/public/assets');
  * @class Ragdoll
  */
 export default class Ragdoll {
-    constructor() {
+    constructor(socket, data) {
+        this.socket = socket;
+        this.data = data;
+        console.log(data);
         // Graphics variables
         this.camera = null;
         this.controls = null;
@@ -28,6 +31,8 @@ export default class Ragdoll {
         this.ballMaterial = new THREE.MeshPhongMaterial({ color: 0x202020 });
         this.pos = new THREE.Vector3();
         this.quat = new THREE.Quaternion();
+        this.width = 80;
+        this.height = 80;
 
         // Physics variables
         this.gravityConstant = -9.8;
@@ -42,11 +47,21 @@ export default class Ragdoll {
         this.hinge = null;
         this.transformAux1 = new Ammo.btTransform();
         this.softBodyHelpers = new Ammo.btSoftBodyHelpers();
+        this.softBodyPlayers = {};
 
         this.armMovement = 0;
 
+        this.map = { width: 80, height: 80 };
+
         this.players = null;
         this.state = null;
+
+        this.ready = false;
+
+        this.font;
+        this.loadFont();
+
+        this.rotation = 0.1;
     }
     playersReady() {
         if (!this.players) return false;
@@ -58,8 +73,10 @@ export default class Ragdoll {
     addPlayer(player) {
         if (!this.players) this.players = {};
         this.players[player.id] = player;
+        this.createMockPlayer(player);
+        this.animate();
     }
-    removePlayer(id){
+    removePlayer(id) {
         delete this.players[id];
     }
     processGeometry(bufGeometry) {
@@ -152,8 +169,26 @@ export default class Ragdoll {
         }
 
     }
+    createSoftVolumeWithoutPhysics(bufferGeom, mass, pressure, _material, id) {
+        this.processGeometry(bufferGeom);
+        let material = _material || new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
+        var volume = new THREE.Mesh(bufferGeom, material);
+        volume.castShadow = true;
+        volume.receiveShadow = true;
+        volume.frustumCulled = false;
+        this.scene.add(volume);
 
-    createSoftVolume(bufferGeom, mass, pressure, _material) {
+        this.textureLoader.load("src/public/assets/crazy-chicken-no-alpha.png", function (texture) {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(4, 1);
+            volume.material.map = texture;
+            volume.material.needsUpdate = true;
+        });
+        volume.name = id;
+    }
+
+    createSoftVolumeWithPhysics(bufferGeom, mass, pressure, _material) {
 
         this.processGeometry(bufferGeom);
         let material = _material || new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
@@ -204,8 +239,7 @@ export default class Ragdoll {
         // Disable deactivation
         volumeSoftBody.setActivationState(4);
 
-        this.softBodies.push(volume);
-
+        return volume;
     }
 
     createParalellepiped(sx, sy, sz, mass, pos, quat, material) {
@@ -252,23 +286,40 @@ export default class Ragdoll {
 
         return body;
     }
-    createPlayer(color) {
-        let material = new THREE.MeshPhongMaterial({ color: color })
+
+    createMockPlayer(player) {
+
+        let material = new THREE.MeshPhongMaterial({ color: player.character || 'red' })
         let volumeMass = 0.1;
         let sphereGeometry = new THREE.SphereBufferGeometry(1.5, 40, 25);
-        sphereGeometry.translate(-width / 4, height + 10, -8);
-        this.createSoftVolume(sphereGeometry, volumeMass, 100, material);
+        sphereGeometry.translate(player.position.x, this.height + 10, -8);
+        this.softBodyPlayers[player.id] = this.createSoftVolumeWithoutPhysics(sphereGeometry, volumeMass, 100, material, player.id);
     }
+
+    loadFont() {
+        let self = this;
+        let loader = new THREE.FontLoader();
+        loader.load('src/public/assets/font.json', function (font) {
+            self.font = font;
+        });
+    }
+
+    createPlayer(player) {
+        let material = new THREE.MeshPhongMaterial({ color: player.character || 'red' })
+        let volumeMass = 0.1;
+        let sphereGeometry = new THREE.SphereBufferGeometry(1.5, 40, 25);
+        sphereGeometry.translate(player.position.x, this.height + 10, -8);
+        this.softBodyPlayers[player.id] = this.createSoftVolumeWithPhysics(sphereGeometry, volumeMass, 100, material);
+    }
+
     createObjects() {
         let pos = new THREE.Vector3();
         let quat = new THREE.Quaternion();
-        let width = 80;
-        let height = 80;
 
         // Ground
         pos.set(0, - 0.5, 0);
         quat.set(0, 0, 0, 1);
-        var ground = this.createParalellepiped(width, 1, height, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0xFFFFFF }));
+        var ground = this.createParalellepiped(this.width, 1, this.height, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0x654321 }));
         ground.castShadow = true;
         ground.receiveShadow = true;
         this.textureLoader.load("src/public/assets/ground.jpg", function (texture) {
@@ -276,18 +327,12 @@ export default class Ragdoll {
             ground.material.needsUpdate = true;
         });
 
-
-
-        var volumeMass = 0.1;
-        var sphereGeometry = new THREE.SphereBufferGeometry(1.5, 40, 25);
-        sphereGeometry.translate(width / 4, height + 10, -8);
-        this.createSoftVolume(sphereGeometry, volumeMass, 100);
-
         // Rods
         var rod;
-        for (let i = 0; i < width; i += 5) {
-            for (let j = height - 5; j >= 10; j -= 5) {
-                let x = j % 2 === 0 ? -width / 2 : -width / 2 + 2.5;
+        quat.set(-0.05, 0, 0, 1);
+        for (let i = 0; i < this.width; i += 5) {
+            for (let j = this.height - 5; j >= 10; j -= 5) {
+                let x = j % 2 === 0 ? -this.width / 2 : -this.width / 2 + 2.5;
                 pos.set(i + x, j, 0);
                 rod = this.createParalellepiped(0.5, 0.5, 25, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0xff0000 }));
                 rod.castShadow = true;
@@ -295,21 +340,68 @@ export default class Ragdoll {
             }
         }
 
+
         // Platforms
-        let numObjects = 8;
-        let tWidth = width / numObjects;
-        for (let i = 0; i < numObjects; i++) {
-            pos.set(i * tWidth - width / 2 + tWidth / 2, 0, 0);
-            var trigger = this.createParalellepiped(tWidth - 1, 0, 30, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0x0000ff }));
+        quat.set(0, 0, 0, 1);
+        // let numObjects = 8;
+        let tWidth = this.width / this.data.length;
+        var xPos = [];
+        xPos.push(-this.width / 2);
+        var scale = { x: 1, y: 1, z: 0.1 };
+        for (let i = 0; i < this.data.length; i++) {
+            let tWidth = this.width * this.data[i].prob;
+            pos.set(xPos[i] + tWidth / 2, 0, 0);
+            var loader = new THREE.FontLoader();
+            let self = this;
+            let textGeo = null;
+            loader.load('src/public/assets/font.json', function (font) {
+                textGeo = new THREE.TextGeometry(self.data[i].type, {
+
+                    font: font,
+
+                    size: tWidth / 4,
+                    height: 2,
+                    curveSegments: 3,
+
+                    bevelThickness: 0.3,
+                    bevelSize: 0.01,
+                    bevelEnabled: true
+
+                });
+                var textMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+                var mesh = new THREE.Mesh(textGeo, textMaterial);
+                mesh.position.set(xPos[i], 3, 2);
+                mesh.scale.set(scale.x, scale.y, scale.z);
+                self.scene.add(mesh);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+            });
+
+            var trigger = this.createParalellepiped(tWidth - 2, 0, 30, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0x0000ff }));
             trigger.castShadow = true;
             trigger.receiveShadow = true;
+            xPos.push(xPos[i] + tWidth);
+            console.log(xPos[i]);
         }
 
         // Wall
-        pos.set(0, height / 2, -10);
-        var obstacle = this.createParalellepiped(width, height, 1, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0xffffff }));
+        pos.set(0, this.height / 2, -10);
+        var obstacle = this.createParalellepiped(this.width, this.height, 1, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0xffffff }));
         obstacle.castShadow = true;
         obstacle.receiveShadow = true;
+
+        // Wall
+        pos.set(-this.width / 2, this.height / 2, 0);
+        var obstacle = this.createParalellepiped(1, this.height, 30, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0xffffff }));
+        obstacle.castShadow = true;
+        obstacle.receiveShadow = true;
+
+        // // Wall
+        pos.set(this.width / 2, this.height / 2, 0);
+        var obstacle = this.createParalellepiped(1, this.height, 30, 0, pos, quat, new THREE.MeshPhongMaterial({ color: 0xffffff }));
+        obstacle.castShadow = true;
+        obstacle.receiveShadow = true;
+
 
     }
     initInput() {
@@ -355,7 +447,6 @@ export default class Ragdoll {
     processClick() {
         let pos = new THREE.Vector3();
         let quat = new THREE.Quaternion();
-
         if (clickRequest) {
 
             this.raycaster.setFromCamera(mouseCoords, this.camera);
@@ -401,9 +492,9 @@ export default class Ragdoll {
 
         // Setup Camera
         this.camera = new THREE.PerspectiveCamera(60, deviceInfo.screenWidth() / deviceInfo.screenHeight(), 0.9, 2000);
-        this.camera.position.x = 8;
-        this.camera.position.y = 50;
-        this.camera.position.z = 120;
+        this.camera.position.x = 0;
+        this.camera.position.y = 8;
+        this.camera.position.z = 80;
         // Setup Scene
         this.scene = new THREE.Scene();
         // Setup Renderer
@@ -417,35 +508,54 @@ export default class Ragdoll {
         if (debug) console.log("Renderer: ", this.renderer);
         // Setup controls
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.target.y = 30;
+        this.controls.target.y = 35;
         // Setup texture loader
         this.textureLoader = new THREE.TextureLoader();
+
         // Setup Light
-        var ambientLight = new THREE.AmbientLight(0x666666);
+        var ambientLight = new THREE.AmbientLight(0xe8d261, 0.3);
         this.scene.add(ambientLight);
-        var light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(40, 40, 20);
-        light.castShadow = true;
-        var d = 20;
-        light.shadow.camera.left = -d;
-        light.shadow.camera.right = d;
-        light.shadow.camera.top = d;
-        light.shadow.camera.bottom = -d;
-        light.shadow.camera.near = 2;
-        light.shadow.camera.far = 50;
-        light.shadow.mapSize.x = 1024;
-        light.shadow.mapSize.y = 1024;
-        this.scene.add(light);
+
+        var spotLight = new THREE.SpotLight(0xffffff);
+        spotLight.position.set(-this.width/2, this.height + 30, 40);
+        spotLight.castShadow = true;
+        this.scene.add(spotLight);
+
+        var spotLight = new THREE.SpotLight(0xffffff);
+        spotLight.position.set(this.width/2, this.height + 30, 40);
+        spotLight.castShadow = true;
+        this.scene.add(spotLight);
+
+        // var light = new THREE.DirectionalLight(0xffffff, 1);
+        // light.position.set(40, 40, 20);
+        // light.castShadow = true;
+        // var d = 20;
+        // light.shadow.camera.left = -d;
+        // light.shadow.camera.right = d;
+        // light.shadow.camera.top = d;
+        // light.shadow.camera.bottom = -d;
+        // light.shadow.camera.near = 2;
+        // light.shadow.camera.far = 50;
+        // light.shadow.mapSize.x = 1024;
+        // light.shadow.mapSize.y = 1024;
+
+        // this.scene.add(light);
         // Setup window resize event
         window.addEventListener('resize', onWindowResize, false);
 
     }
-
     animate() {
-
         var deltaTime = this.clock.getDelta();
-
         if (this.playersReady()) {
+            if (!this.ready) {
+                this.softBodyPlayers = {};
+                for (let i in this.players) {
+                    let player = this.players[i];
+                    this.removeFromScene(player.id);
+                    this.createPlayer(player);
+                }
+                this.ready = true;
+            }
             this.updatePhysics(deltaTime);
             this.processClick();
         }
@@ -455,15 +565,22 @@ export default class Ragdoll {
         this.renderer.render(this.scene, this.camera);
 
     }
-
-    updatePhysics(deltaTime) {
-
-        // Step world
-        this.physicsWorld.stepSimulation(deltaTime, 10);
-
+    removeFromScene(id) {
+        for (let i in this.scene.children) {
+            let c = this.scene.children[i];
+            if (c.name === id) {
+                this.scene.remove(this.scene.children[i]);
+            }
+        }
+    }
+    newPlayerPosition(player) {
+        this.removeFromScene(player.id);
+        this.createMockPlayer(player);
+    }
+    updateSoftbody(softBodies, length) {
         // Update soft volumes
-        for (var i = 0, il = this.softBodies.length; i < il; i++) {
-            var volume = this.softBodies[i];
+        for (var i = 0, il = length; i < il; i++) {
+            var volume = softBodies[i];
             var geometry = volume.geometry;
             var softBody = volume.userData.physicsBody;
             var volumePositions = geometry.attributes.position.array;
@@ -502,6 +619,34 @@ export default class Ragdoll {
             geometry.attributes.normal.needsUpdate = true;
 
         }
+    }
+    updateRigidBodies(rigidBodies, length) {
+        // Update rigid bodies
+        for (var i = 0, il = length; i < il; i++) {
+            var objThree = rigidBodies[i];
+            var objPhys = objThree.userData.physicsBody;
+            var ms = objPhys.getMotionState();
+            if (ms) {
+
+                ms.getWorldTransform(this.transformAux1);
+                var p = this.transformAux1.getOrigin();
+                var q = this.transformAux1.getRotation();
+                objThree.position.set(p.x(), p.y(), p.z());
+                objThree.quaternion.set(q.x(), q.y(), q.z(), q.w());
+
+            }
+        }
+    }
+
+    updatePhysics(deltaTime) {
+
+        // Step world
+        this.physicsWorld.stepSimulation(deltaTime, 10);
+
+        if (this.softBodies.length) this.updateSoftbody(this.softBodies, this.softBodies.length);
+        if (Object.keys(this.softBodyPlayers).length) this.updateSoftbody(Object.values(this.softBodyPlayers), Object.keys(this.softBodyPlayers).length);
+
+        // if (this.rigidBodies.length) this.updateRigidBodies(this.rigidBodies, this.rigidBodies.length);
 
         // Update rigid bodies
         for (var i = 0, il = this.rigidBodies.length; i < il; i++) {
@@ -523,7 +668,7 @@ export default class Ragdoll {
     setup() {
 
         if (debug) console.log("Setting up Ragdoll");
-
+        document.body.style.backgroundImage = "url('src/public/assets/theatre-curtains.jpg')";
         let deltaTime = this.clock.getDelta();
 
         this.initGraphics();
@@ -532,11 +677,13 @@ export default class Ragdoll {
         this.initInput();
         this.controls.update(deltaTime);
         this.renderer.render(this.scene, this.camera);
-
     }
 
     update(state) {
-        this.players = state;
+        this.players = state.players;
+        for (let i in this.players) {
+            let player = this.players[i];
+        }
     }
 
     play() {

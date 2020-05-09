@@ -20,7 +20,7 @@ export default class DecisionData {
             epoch: _time
         };
     }
-    // Takes in JSON data with option to remove 
+    // Takes in JSON data with option to remove previous data
     loadDecisions(jsonData, doRemove) {
         let data = JSON.parse(jsonData);
         if (doRemove) this.data.decisions = {};
@@ -36,5 +36,8 @@ export default class DecisionData {
         this.addDecision("sweep", 1, 1, Date.now());
         this.addDecision("mop", 1, 2, Date.now());
         this.addDecision("dust", 1, 2, Date.now());
+        this.addDecision("fuck", 1, 2, Date.now());
+        this.addDecision("eat", 1, 7, Date.now());
+        return true;
     }
 }

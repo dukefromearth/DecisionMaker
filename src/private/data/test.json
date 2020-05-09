@@ -9,19 +9,31 @@
 						"type": "sweep",
 						"value": 1,
 						"weight": 1,
-						"epoch": 1588791355059
+						"epoch": 1589049684487
 					},
 					"mop": {
 						"type": "mop",
 						"value": 1,
 						"weight": 2,
-						"epoch": 1588791355059
+						"epoch": 1589049684487
 					},
 					"dust": {
 						"type": "dust",
 						"value": 1,
 						"weight": 2,
-						"epoch": 1588791355059
+						"epoch": 1589049684487
+					},
+					"fuck": {
+						"type": "fuck",
+						"value": 1,
+						"weight": 2,
+						"epoch": 1589049684487
+					},
+					"eat": {
+						"type": "eat",
+						"value": 1,
+						"weight": 7,
+						"epoch": 1589049684487
 					}
 				}
 			}
@@ -37,19 +49,31 @@
 						"type": "sweep",
 						"value": 1,
 						"weight": 1,
-						"epoch": 1588791355059
+						"epoch": 1589049684487
 					},
 					"mop": {
 						"type": "mop",
 						"value": 1,
 						"weight": 2,
-						"epoch": 1588791355059
+						"epoch": 1589049684487
 					},
 					"dust": {
 						"type": "dust",
 						"value": 1,
 						"weight": 2,
-						"epoch": 1588791355059
+						"epoch": 1589049684487
+					},
+					"fuck": {
+						"type": "fuck",
+						"value": 1,
+						"weight": 2,
+						"epoch": 1589049684487
+					},
+					"eat": {
+						"type": "eat",
+						"value": 1,
+						"weight": 7,
+						"epoch": 1589049684487
 					}
 				}
 			}

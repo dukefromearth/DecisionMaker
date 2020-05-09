@@ -13,7 +13,7 @@ const app = express();
 const server = http.Server(app);
 const io = socketIO(server);
 const port_num = 8000;
-const debug = true;
+const debug = false;
 const decisionMaker = new DecisionMaker();
 decisionMaker.runTest();
 
@@ -38,7 +38,7 @@ io.on('connection', function (socket) {
     socket.on('new player', function (info) {
         let player;
         if (!game) game = new Game(info.game);       // If the game type isn't running, create a new instance of it. 
-        player = game.addPlayer(socket.id, info.userName, info.character);   // Add player to the current game
+        player = game.addPlayer(socket.id, info.userName, info.character, { x: Math.random() * game.width - game.width / 2, y: 0, z: 0 });   // Add player to the current game
         let data = decisionMaker.getProbs("test");
         io.emit('setup game', game.getType(), data);  // Send the current game type to the end user
         io.emit('new player', player);              // Notify all existing players that a new player has arrived
@@ -62,13 +62,36 @@ io.on('connection', function (socket) {
     socket.on('player ready', function () {
         if (debug) console.log(game.getPlayer(socket.id).id, " is ready.");
         game.players[socket.id].ready = true;
+    });
+
+    socket.on('setup game', function (map) {
+        game.width = map.width;
+        game.height = map.height;
     })
+
+    socket.on('movement', function (movement) {
+        game.players[socket.id].position.x += movement.x;
+        game.players[socket.id].position.y += movement.y;
+        game.players[socket.id].position.x += movement.z;
+    });
+
+    socket.on('new player position', function(movement){
+        game.players[socket.id].position.x += movement.x;
+        game.players[socket.id].position.y += movement.y;
+        game.players[socket.id].position.x += movement.z;
+        io.emit('new player position', game.players[socket.id]);
+    });
+
+    socket.on('debug', function(info){
+        console.log(info);
+    });
 
 });
 
 function run() {
     setInterval(function () {
-        io.emit('state', game.getAllPlayers());
-        console.log(game.getAllPlayers());
+        io.emit('state', { players: game.getAllPlayers() });
+        game.resetMovement();
+        if (debug) console.log(game.getAllPlayers());
     }, 1000 / 30);
 }

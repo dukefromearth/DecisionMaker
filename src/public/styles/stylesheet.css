@@ -172,3 +172,41 @@ input:focus {
   left: 50%;
   margin-left: -60px;
 }
+.control_btn {
+  width: 80px;
+  height: 80px;
+}
+.left_btn {
+  position: absolute;
+  background:  url(/src/public/assets/arrow-left.png) no-repeat;
+  background-size: contain;
+  margin-top: 80%;
+  left: 10%;
+}
+
+.right_btn {
+  position: absolute;
+  background:  url(/src/public/assets/arrow-right.png) no-repeat;
+  background-size: contain;
+  margin-top: 80%;
+  right: 10%;
+  
+}
+
+.up_btn {
+  position: absolute;
+  background: url(/src/public/assets/arrow-up.png) no-repeat;
+  background-size: contain;
+  margin-top: 60%;
+  left: 50%;
+  margin-left: -40px;
+}
+
+.down_btn {
+  position: absolute;
+  background: url(/src/public/assets/arrow-down.png) no-repeat;
+  background-size: contain;
+  margin-top: 100%;
+  left: 50%;
+  margin-left: -40px;
+}
